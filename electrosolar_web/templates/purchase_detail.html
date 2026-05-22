@@ -1,0 +1,36 @@
+{% extends 'base.html' %}{% block title %}Purchase {{ purchase.ref_no }}{% endblock %}{% block page_title %}Purchase — {{ purchase.ref_no }}{% endblock %}
+{% block content %}
+{% set cur = settings.get('currency','₦') %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">
+    <div><span class="text-muted">Supplier: </span><strong>{{ purchase.supplier_name }}</strong></div>
+    <div><span class="text-muted">Date: </span>{{ purchase.created_at[:10] }}</div>
+    <div><span class="text-muted">Recorded by: </span>{{ purchase.staff_name }}</div>
+    {% if purchase.notes %}<div><span class="text-muted">Notes: </span>{{ purchase.notes }}</div>{% endif %}
+  </div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Product</th><th>Quantity</th><th>Unit Cost</th><th>Subtotal</th></tr></thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>{{ item.product_name }}</td>
+          <td>{{ item.quantity }}</td>
+          <td>{{ cur }}{{ '{:,.0f}'.format(item.unit_cost) }}</td>
+          <td style="font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(item.subtotal) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="padding:14px 18px;border-top:1px solid var(--border);text-align:right;font-size:16px;font-weight:700;">
+    Total Cost: {{ cur }}{{ '{:,.0f}'.format(purchase.total_cost) }}
+  </div>
+</div>
+<div style="margin-top:16px;display:flex;gap:10px;">
+  <button class="btn btn-secondary" onclick="window.print()">🖨 Print</button>
+  <a href="{{ url_for('purchases') }}" class="btn btn-secondary">← Back to Purchases</a>
+</div>
+{% endblock %}

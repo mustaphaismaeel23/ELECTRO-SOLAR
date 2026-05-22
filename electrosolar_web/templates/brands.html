@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}Brands{% endblock %}
+{% block page_title %}Brands ({{ brands|length }}){% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div></div>
+  {% if current_user.role == 'admin' %}
+  <button class="btn btn-primary" onclick="openModal('brandModal')">+ Add Brand</button>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Brand Name</th>
+          <th>Description</th>
+          <th>Products</th>
+          {% if current_user.role == 'admin' %}<th>Actions</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in brands %}
+        <tr>
+          <td style="font-weight:500;">{{ b.name }}</td>
+          <td class="text-muted">{{ b.description or '—' }}</td>
+          <td><span class="badge badge-info">{{ b.pc }}</span></td>
+          {% if current_user.role == 'admin' %}
+          <td>
+            <div style="display:flex;gap:6px;">
+             <button class="btn-icon"
+onclick="editBrand(
+  '{{ b.id }}',
+  '{{ b.name|e }}',
+  `{{ b.description or '' }}`
+)"
+title="Edit">
+✎
+</button>
+              <form method="POST" action="{{ url_for('brands_delete', bid=b.id) }}" style="display:inline" onsubmit="return confirm('Delete this brand?')">
+                <button type="submit" class="btn-icon" style="color:var(--danger);" title="Delete">🗑</button>
+              </form>
+            </div>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="{% if current_user.role == 'admin' %}4{% else %}3{% endif %}" style="text-align:center;padding:32px;color:var(--text3);">No brands added yet</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Edit Brand Modal -->
+<div id="brandModal" class="modal-overlay" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3 id="brandModalTitle">Add Brand</h3>
+      <button type="button" class="btn-icon" onclick="closeModal('brandModal')">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('brands_save') }}">
+      <div class="modal-body">
+        <input type="hidden" name="id" id="brandId">
+        <div class="form-group">
+          <label>Name *</label>
+          <input name="name" id="brandName" required placeholder="e.g. Fronius, SMA, Victron...">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea name="description" id="brandDesc" placeholder="Brand details..." style="min-height:60px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('brandModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Brand</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function editBrand(b) {
+  document.getElementById('brandModalTitle').textContent = 'Edit Brand';
+  document.getElementById('brandId').value = b.id;
+  document.getElementById('brandName').value = b.name;
+  document.getElementById('brandDesc').value = b.description || '';
+  openModal('brandModal');
+}
+</script>
+{% endblock %}

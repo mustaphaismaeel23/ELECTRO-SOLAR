@@ -1,0 +1,364 @@
+{% extends 'base.html' %}
+{% block title %}POS — ElectroSolar{% endblock %}
+{% block page_title %}Point of Sale{% endblock %}
+
+{% block content %}
+{% set cur = settings.get('currency','₦') %}
+
+<div class="pos-layout">
+  <!-- Product grid -->
+  <div class="pos-products card" style="display:flex;flex-direction:column;overflow:hidden;">
+    <div style="padding:12px 14px;border-bottom:1px solid var(--border);">
+      <input type="text" id="productSearch" placeholder="Search product by name or SKU..." oninput="filterProducts()" autofocus style="width:100%;">
+    </div>
+    <div class="pos-product-grid" id="productGrid">
+      {% for p in products %}
+      <div class="pos-product-tile" onclick="addToCart({{ p.id }}, '{{ p.name|replace("'","\\'") }}', {{ p.selling_price }}, {{ p.quantity }})">
+        <div class="p-name">{{ p.name }}</div>
+        <div class="p-price">{{ cur }}{{ '{:,.0f}'.format(p.selling_price) }}</div>
+        <div class="p-stock">{{ p.quantity }} {{ p.unit }} in stock</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Cart -->
+  <div class="pos-cart">
+    <div class="pos-cart-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Cart <span id="cartCount">(0 items)</span></span>
+      <button onclick="clearCart()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;">Clear</button>
+    </div>
+
+    <div class="pos-cart-items" id="cartItems">
+      <div id="emptyCart" style="text-align:center;padding:24px;color:var(--text3);font-size:13px;">
+        Click products to add them to cart
+      </div>
+    </div>
+
+    <div class="pos-cart-footer">
+      <div class="pos-total-row"><span>Subtotal</span><span id="subtotalDisplay">{{ cur }}0</span></div>
+      <div class="pos-total-row">
+        <span>Discount</span>
+        <input type="number" id="discountInput" value="0" min="0" oninput="calcTotal()" style="width:90px;text-align:right;padding:3px 6px;font-size:12px;">
+      </div>
+      <div class="pos-total-row grand"><span>Total</span><span id="totalDisplay">{{ cur }}0</span></div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">
+       <select id="customerSelect" onchange="toggleWalkInName()">
+  <option value="">Walk-in customer</option>
+
+  {% for c in customers %}
+  <option value="{{ c.id }}">
+    {{ c.name }}{% if c.phone %} ({{ c.phone }}){% endif %}
+  </option>
+  {% endfor %}
+</select>
+
+<input
+  type="text"
+  id="walkInCustomer"
+  placeholder="Enter walk-in customer name"
+  style="margin-top:6px;"
+>
+    <select id="paymentMethod">
+          <option value="cash">Cash</option>
+          <option value="bank_transfer">Bank Transfer</option>
+          <option value="pos">POS Terminal</option>
+        </select>
+        <input type="number" id="amountPaid" placeholder="Amount paid" min="0" oninput="calcBalance()" style="font-weight:600;">
+        <div id="balanceInfo" style="font-size:12px;display:none;padding:4px 0;"></div>
+        <textarea id="saleNotes" placeholder="Notes (optional)" style="min-height:44px;font-size:12px;resize:none;"></textarea>
+        <button class="btn btn-primary" style="justify-content:center;padding:11px;font-size:14px;font-weight:700;" onclick="completeSale()">
+          ✓ Complete Sale
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Receipt Modal -->
+<div id="receiptModal" class="modal-overlay" style="display:none;">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h3>Sale Complete ✓</h3>
+      <button class="btn-icon" onclick="closeModal('receiptModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="receiptContent"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('receiptModal')">Close</button>
+      <button class="btn btn-primary" onclick="printReceipt()">🖨 Print Receipt</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CUR = '{{ cur }}';
+const INVOICE_NO = '{{ invoice_no }}';
+const SHOP_NAME = '{{ settings.get("shop_name","ElectroSolar Shop") }}';
+const SHOP_ADDRESS = '{{ settings.get("shop_address","") }}';
+const SHOP_PHONE = '{{ settings.get("shop_phone","") }}';
+const RECEIPT_FOOTER = '{{ settings.get("receipt_footer","Thank you!") }}';
+
+let cart = {};
+
+function fmt(n) { return CUR + Number(n).toLocaleString('en-NG', {minimumFractionDigits:0}); }
+
+function filterProducts() {
+  const q = document.getElementById('productSearch').value.toLowerCase();
+  document.querySelectorAll('.pos-product-tile').forEach(tile => {
+    const name = tile.querySelector('.p-name').textContent.toLowerCase();
+    tile.style.display = !q || name.includes(q) ? '' : 'none';
+  });
+}
+
+function addToCart(id, name, price, maxQty) {
+  if (cart[id]) {
+    if (cart[id].qty >= maxQty) { showToast('Max stock reached', 'error'); return; }
+    cart[id].qty++;
+  } else {
+    cart[id] = { id, name, price, qty: 1, max: maxQty };
+  }
+  renderCart(); showToast(name + ' added');
+}
+
+function renderCart() {
+  const items = Object.values(cart);
+  document.getElementById('emptyCart').style.display = items.length ? 'none' : '';
+  document.getElementById('cartCount').textContent = `(${items.length} item${items.length!==1?'s':''})`;
+  const existing = document.querySelectorAll('.cart-item');
+  existing.forEach(e => e.remove());
+  const container = document.getElementById('cartItems');
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'cart-item';
+    div.innerHTML = `
+      <div class="cart-item-name">${item.name}</div>
+      <div class="cart-item-qty">
+        <button onclick="changeQty(${item.id},-1)">-</button>
+        <input type="number" value="${item.qty}" min="1" max="${item.max}" style="width:36px;text-align:center;padding:2px 4px;font-size:12px;" onchange="setQty(${item.id},this.value)">
+        <button onclick="changeQty(${item.id},1)">+</button>
+      </div>
+      <div class="cart-item-price">${fmt(item.price * item.qty)}</div>
+      <span class="cart-item-remove" onclick="removeFromCart(${item.id})">✕</span>
+    `;
+    container.appendChild(div);
+  });
+  calcTotal();
+}
+
+function changeQty(id, delta) {
+  if (!cart[id]) return;
+  const newQty = cart[id].qty + delta;
+  if (newQty < 1) { removeFromCart(id); return; }
+  if (newQty > cart[id].max) { showToast('Max stock reached','error'); return; }
+  cart[id].qty = newQty;
+  renderCart();
+}
+
+function setQty(id, val) {
+  const n = parseInt(val);
+  if (n < 1 || n > cart[id].max) { renderCart(); return; }
+  cart[id].qty = n;
+  calcTotal();
+}
+
+function removeFromCart(id) { delete cart[id]; renderCart(); }
+function clearCart() { cart = {}; renderCart(); document.getElementById('amountPaid').value=''; document.getElementById('discountInput').value=0; calcTotal(); }
+
+function calcTotal() {
+  const items = Object.values(cart);
+  const subtotal = items.reduce((s,i)=>s+i.price*i.qty, 0);
+  const disc = parseFloat(document.getElementById('discountInput').value)||0;
+  const total = Math.max(0, subtotal - disc);
+  document.getElementById('subtotalDisplay').textContent = fmt(subtotal);
+  document.getElementById('totalDisplay').textContent = fmt(total);
+  calcBalance();
+}
+
+function calcBalance() {
+  const disc = parseFloat(document.getElementById('discountInput').value)||0;
+  const subtotal = Object.values(cart).reduce((s,i)=>s+i.price*i.qty,0);
+  const total = Math.max(0, subtotal - disc);
+  const paid = parseFloat(document.getElementById('amountPaid').value)||0;
+  const info = document.getElementById('balanceInfo');
+  if (paid > 0) {
+    info.style.display = '';
+    const balance = total - paid;
+    if (balance > 0) info.innerHTML = `<span style="color:var(--warning-text);">Balance due: ${fmt(balance)}</span>`;
+    else info.innerHTML = `<span style="color:var(--success-text);">Change: ${fmt(Math.abs(balance))}</span>`;
+  } else { info.style.display='none'; }
+}
+
+async function completeSale() {
+  const items = Object.values(cart);
+  if (!items.length) { showToast('Cart is empty','error'); return; }
+  const paid = parseFloat(document.getElementById('amountPaid').value)||0;
+  if (paid <= 0) { showToast('Enter amount paid','error'); return; }
+  const disc = parseFloat(document.getElementById('discountInput').value)||0;
+  const subtotal = items.reduce((s,i)=>s+i.price*i.qty,0);
+  const total = Math.max(0, subtotal - disc);
+  const balance = Math.max(0, total - paid);
+  const customerId = document.getElementById('customerSelect').value;
+  const walkInName = document.getElementById('walkInCustomer').value.trim();
+
+if (balance > 0 && !customerId && !walkInName) {
+  showToast('Enter customer name for credit sales','error');
+  return;
+}
+  const payload = {
+    invoice_no: INVOICE_NO,
+    customer_id: customerId ? parseInt(customerId) : null,
+walk_in_customer: walkInName || 'Walk-in Customer',
+    subtotal, discount: disc, total,
+    amount_paid: paid, balance,
+    payment_method: document.getElementById('paymentMethod').value,
+    status: balance > 0 ? 'credit' : 'paid',
+    notes: document.getElementById('saleNotes').value,
+    items: items.map(i => ({ product_id:i.id, product_name:i.name, quantity:i.qty, unit_price:i.price, subtotal:i.price*i.qty }))
+  };
+
+  const res = await fetch('/pos/complete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const data = await res.json();
+if (data.success) {
+    showReceipt(payload, items);
+    clearCart();
+ showToast('Sale completed successfully');
+  } else {
+    showToast(data.message || 'Sale failed', 'error');
+  }  
+}
+
+function showReceipt(sale, items) {
+  const lines = items.map(i => `
+    <div style="font-size:12px;">${i.name}</div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:#555;padding-left:8px;margin-bottom:4px;">
+      <span>${i.qty} × ${fmt(i.unit_price)}</span><span>${fmt(i.price*i.qty)}</span>
+    </div>`).join('');
+
+  document.getElementById('receiptContent').innerHTML = `
+    <div class="receipt">
+      <div class="receipt-header">
+        <h2>${SHOP_NAME}</h2>
+        ${SHOP_ADDRESS ? '<p>' + SHOP_ADDRESS + '</p>' : ''}
+        ${SHOP_PHONE ? '<p>Tel: ' + SHOP_PHONE + '</p>' : ''}
+        <p style="margin-top:6px;font-size:11px;">Receipt: ${sale.invoice_no}</p>
+        <p style="font-size:11px;">${new Date().toLocaleString('en-NG')}</p>
+
+<p style="font-size:11px;">
+  Customer:
+  ${sale.walk_in_customer || 'Registered Customer'}
+</p>
+      </div>
+      <div class="receipt-items">${lines}</div>
+      <hr class="receipt-divider">
+      ${sale.discount>0?`<div class="receipt-item" style="font-size:12px;"><span>Discount</span><span>-${fmt(sale.discount)}</span></div>`:''}
+      <div class="receipt-total"><span>TOTAL</span><span>${fmt(sale.total)}</span></div>
+      <hr class="receipt-divider">
+      <div class="receipt-item" style="font-size:12px;"><span>Paid</span><span>${fmt(sale.amount_paid)}</span></div>
+      ${sale.balance>0?`<div class="receipt-item" style="font-size:12px;"><span>Balance Due</span><span>${fmt(sale.balance)}</span></div>`:''}
+      ${sale.amount_paid>sale.total?`<div class="receipt-item" style="font-size:12px;"><span>Change</span><span>${fmt(sale.amount_paid-sale.total)}</span></div>`:''}
+      <div class="receipt-footer"><p>${RECEIPT_FOOTER}</p></div>
+    </div>`;
+  openModal('receiptModal');
+}
+
+function toggleWalkInName() {
+
+  const customerSelect = document.getElementById('customerSelect');
+  const walkInInput = document.getElementById('walkInCustomer');
+
+  if (customerSelect.value) {
+    walkInInput.disabled = true;
+    walkInInput.style.opacity = '0.6';
+    walkInInput.value = '';
+  } else {
+    walkInInput.disabled = false;
+    walkInInput.style.opacity = '1';
+  }
+}
+toggleWalkInName();
+
+function printReceipt() {
+
+  const content = document.getElementById('receiptContent').innerHTML;
+
+  const printWindow = window.open('', '', 'width=400,height=700');
+
+  printWindow.document.write(`
+    <html>
+    <head>
+      <title>Receipt</title>
+
+      <style>
+
+        body{
+          font-family: Arial, sans-serif;
+          padding:20px;
+          font-size:12px;
+          color:#000;
+        }
+
+        .receipt-header{
+          text-align:center;
+          margin-bottom:10px;
+          border-bottom:1px dashed #000;
+          padding-bottom:10px;
+        }
+
+        .receipt-header h2{
+          margin:0;
+          font-size:18px;
+        }
+
+        .receipt-item,
+        .receipt-total{
+          display:flex;
+          justify-content:space-between;
+          margin:4px 0;
+        }
+
+        .receipt-total{
+          font-weight:bold;
+          font-size:14px;
+        }
+
+        .receipt-divider{
+          border:none;
+          border-top:1px dashed #000;
+          margin:8px 0;
+        }
+
+        .receipt-footer{
+          text-align:center;
+          margin-top:14px;
+          font-size:11px;
+        }
+
+      </style>
+
+    </head>
+
+    <body>
+
+      ${content}
+
+    </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+
+  printWindow.focus();
+
+  setTimeout(() => {
+
+    printWindow.print();
+
+  }, 500);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,345 @@
+{% extends 'base.html' %}
+{% block title %}Reports{% endblock %}
+{% block page_title %}Reports{% endblock %}
+
+{% block content %}
+
+<div class="page-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+  {% for t, label in types %}
+    <a href="{{ url_for('reports', type=t, **({'from': from_date, 'to': to_date} if t in ['sales','daily_detail','profit','top_products','purchases'] else {})) }}"
+       class="btn {% if report_type==t %}btn-primary{% else %}btn-ghost{% endif %}">
+      {{ label }}
+    </a>
+  {% endfor %}
+</div>
+
+{% if report_type in ['sales','daily_detail','profit','top_products','purchases'] %}
+<form method="GET" style="display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+  <input type="hidden" name="type" value="{{ report_type }}">
+  <input type="date" name="from" value="{{ from_date }}" style="width:145px">
+  <span class="text-muted">to</span>
+  <input type="date" name="to" value="{{ to_date }}" style="width:145px">
+  <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+</form>
+{% endif %}
+
+<div class="card">
+  <div class="card-header">
+    <h3>
+      {% if report_type=='sales' %}Sales Summary
+      {% elif report_type=='daily_detail' %}Daily Transactions
+      {% elif report_type=='profit' %}Profit by Product
+      {% elif report_type=='stock' %}Stock Valuation
+      {% elif report_type=='low_stock' %}Low Stock Items
+      {% elif report_type=='top_products' %}Top Products
+      {% elif report_type=='customer_debt' %}Customer Debt
+      {% elif report_type=='purchases' %}Purchase Records
+      {% endif %}
+    </h3>
+    <span class="text-muted" style="font-size:.78rem">{{ data|length }} record(s)</span>
+  </div>
+
+  <div class="table-wrap">
+
+    {% if report_type == 'sales' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th style="text-align:right">Transactions</th>
+          <th style="text-align:right">Revenue</th>
+          <th style="text-align:right">Discounts</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td>{{ row.day }}</td>
+        <td class="td-num">{{ row.transactions or 0 }}</td>
+        <td class="td-num text-green">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.revenue or 0) }}</td>
+        <td class="td-num text-red">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.discounts or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">No data for this period</td></tr>
+      {% endfor %}
+      </tbody>
+
+      {% if data %}
+      <tfoot>
+        <tr style="background:var(--surface2)">
+          <td><strong>Total</strong></td>
+          <td class="td-num"><strong>{{ data|sum(attribute='transactions') }}</strong></td>
+          <td class="td-num text-green"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='revenue')) }}</strong></td>
+          <td class="td-num text-red"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='discounts')) }}</strong></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+
+    {% elif report_type == 'profit' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th style="text-align:right">Qty Sold</th>
+          <th style="text-align:right">Revenue</th>
+          <th style="text-align:right">Cost</th>
+          <th style="text-align:right">Profit</th>
+          <th style="text-align:right">Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      {% set revenue = row.revenue or 0 %}
+      {% set profit = row.profit or 0 %}
+      <tr>
+        <td>{{ row.product_name }}</td>
+        <td class="td-num">{{ row.qty_sold or 0 }}</td>
+        <td class="td-num">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(revenue) }}</td>
+        <td class="td-num text-muted">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.cost or 0) }}</td>
+        <td class="td-num {% if profit >= 0 %}text-green{% else %}text-red{% endif %}">
+          {{ settings.get('currency','₦') }}{{ "{:,.0f}".format(profit) }}
+        </td>
+        <td class="td-num">{% if revenue > 0 %}{{ "%.1f"|format(profit / revenue * 100) }}%{% else %}—{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">No data for this period</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% elif report_type == 'daily_detail' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Invoice</th>
+          <th>Customer</th>
+          <th>Staff</th>
+          <th style="text-align:right">Total</th>
+          <th style="text-align:right">Paid</th>
+          <th style="text-align:right">Balance</th>
+          <th>Payment</th>
+          <th>Status</th>
+          <th>Date & Time</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td class="td-mono"><a href="{{ url_for('sale_detail', sid=row.id) }}">{{ row.invoice_no }}</a></td>
+        <td>{{ row.customer_name }}</td>
+        <td class="text-muted">{{ row.staff_name }}</td>
+        <td class="td-num" style="font-weight:600;color:var(--success-text);">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.total or 0) }}</td>
+        <td class="td-num">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.amount_paid or 0) }}</td>
+        <td class="td-num {% if (row.balance or 0) > 0 %}text-amber{% else %}text-muted{% endif %}">
+          {% if (row.balance or 0) > 0 %}{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.balance) }}{% else %}—{% endif %}
+        </td>
+        <td class="text-muted" style="text-transform:capitalize;font-size:.85rem;">{{ row.payment_method.replace('_',' ') }}</td>
+        <td><span class="badge badge-{% if row.status=='paid' %}success{% elif row.status=='credit' %}warning{% else %}info{% endif %}">{{ row.status }}</span></td>
+        <td class="text-muted" style="font-size:.85rem;">{{ row.created_at[:16].replace('T',' ') }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:30px">No transactions in this period</td></tr>
+      {% endfor %}
+      </tbody>
+
+      {% if data %}
+      <tfoot>
+        <tr style="background:var(--surface2)">
+          <td colspan="3"><strong>Period Total</strong></td>
+          <td class="td-num"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='total')) }}</strong></td>
+          <td class="td-num"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='amount_paid')) }}</strong></td>
+          <td class="td-num"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='balance')) }}</strong></td>
+          <td colspan="3"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+
+    {% elif report_type == 'stock' %}
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Product</th>
+          <th>Category</th>
+          <th>Brand</th>
+          <th style="text-align:right">Qty</th>
+          <th style="text-align:right">Cost</th>
+          <th style="text-align:right">Stock Value</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td class="text-muted" style="font-size:.75rem">{{ row.sku or '—' }}</td>
+        <td>{{ row.name }}</td>
+        <td class="text-muted">{{ row.category_name or '—' }}</td>
+        <td class="text-muted">{{ row.brand_name or '—' }}</td>
+        <td class="td-num {% if (row.quantity or 0)==0 %}text-red{% elif (row.quantity or 0)<=(row.reorder_level or 0) %}text-amber{% endif %}">
+          {{ row.quantity or 0 }} {{ row.unit or '' }}
+        </td>
+        <td class="td-num text-muted">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.cost_price or 0) }}</td>
+        <td class="td-num text-green">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.stock_value or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">No products found</td></tr>
+      {% endfor %}
+      </tbody>
+
+      {% if data %}
+      <tfoot>
+        <tr style="background:var(--surface2)">
+          <td colspan="6"><strong>Total Stock Value</strong></td>
+          <td class="td-num text-green"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='stock_value')) }}</strong></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+
+    {% elif report_type == 'low_stock' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>Category</th>
+          <th style="text-align:right">Current Qty</th>
+          <th style="text-align:right">Reorder Level</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td><strong>{{ row.name }}</strong></td>
+        <td class="text-muted">{{ row.category_name or '—' }}</td>
+        <td class="td-num {% if (row.quantity or 0)==0 %}text-red{% else %}text-amber{% endif %}">
+          {{ row.quantity or 0 }} {{ row.unit or '' }}
+        </td>
+        <td class="td-num text-muted">{{ row.reorder_level or 0 }}</td>
+        <td>
+          {% if (row.quantity or 0)==0 %}
+            <span class="badge badge-red">OUT OF STOCK</span>
+          {% else %}
+            <span class="badge badge-amber">LOW</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:var(--green);padding:30px">✓ All stock levels are OK</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% elif report_type == 'top_products' %}
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Product</th>
+          <th style="text-align:right">Qty Sold</th>
+          <th style="text-align:right">Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td class="text-muted">{{ loop.index }}</td>
+        <td>{{ row.product_name }}</td>
+        <td class="td-num">{{ row.qty_sold or 0 }}</td>
+        <td class="td-num text-green">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.revenue or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:30px">No data for this period</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% elif report_type == 'customer_debt' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Phone</th>
+          <th>Email</th>
+          <th style="text-align:right">Credit Limit</th>
+          <th style="text-align:right">Balance Owed</th>
+          <th style="text-align:center">Transactions</th>
+          <th>Last Purchase</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td><strong>{{ row.name }}</strong></td>
+        <td class="text-muted">{{ row.phone or '—' }}</td>
+        <td class="text-muted">{{ row.email or '—' }}</td>
+        <td class="td-num text-muted">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.credit_limit or 0) }}</td>
+        <td class="td-num text-amber"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.credit_balance or 0) }}</strong></td>
+        <td class="td-num">{{ row.transaction_count or 0 }}</td>
+        <td class="text-muted" style="font-size:.85rem;">{{ row.last_purchase[:10] if row.last_purchase else '—' }}</td>
+        <td>
+          <a href="{{ url_for('customer_history', cid=row.id) }}" class="btn btn-ghost btn-sm">View History</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="text-align:center;color:var(--green);padding:30px">✓ No outstanding customer debts</td></tr>
+      {% endfor %}
+      </tbody>
+
+      {% if data %}
+      <tfoot>
+        <tr style="background:var(--surface2)">
+          <td colspan="4"><strong>Total Outstanding</strong></td>
+          <td class="td-num text-amber"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='credit_balance')) }}</strong></td>
+          <td class="td-num"><strong>{{ data|sum(attribute='transaction_count') }}</strong></td>
+          <td colspan="2"></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+
+    {% elif report_type == 'purchases' %}
+    <table>
+      <thead>
+        <tr>
+          <th>Ref No</th>
+          <th>Supplier</th>
+          <th>Date</th>
+          <th style="text-align:right">Total Cost</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for row in data %}
+      <tr>
+        <td><strong style="color:var(--accent)">{{ row.ref_no }}</strong></td>
+        <td>{{ row.supplier_name or '—' }}</td>
+        <td class="text-muted" style="font-size:.77rem">{{ row.created_at[:16] if row.created_at else '—' }}</td>
+        <td class="td-num">{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(row.total_cost or 0) }}</td>
+        <td>
+          <a href="{{ url_for('purchase_detail', pid=row.id) }}" class="btn btn-ghost btn-sm">View</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">No purchases in this period</td></tr>
+      {% endfor %}
+      </tbody>
+
+      {% if data %}
+      <tfoot>
+        <tr style="background:var(--surface2)">
+          <td colspan="3"><strong>Total</strong></td>
+          <td class="td-num"><strong>{{ settings.get('currency','₦') }}{{ "{:,.0f}".format(data|sum(attribute='total_cost')) }}</strong></td>
+          <td></td>
+        </tr>
+      </tfoot>
+      {% endif %}
+    </table>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endblock %}

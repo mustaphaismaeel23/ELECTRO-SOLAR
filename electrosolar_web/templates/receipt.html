@@ -1,0 +1,71 @@
+{% extends 'base.html' %}{% block title %}Receipt {{ sale.invoice_no }}{% endblock %}{% block page_title %}Sale — {{ sale.invoice_no }}{% endblock %}
+{% block content %}
+{% set cur = settings.get('currency','₦') %}
+<div style="display:flex;gap:20px;align-items:flex-start;">
+  <div style="flex:1;">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px;">
+        <div><span class="text-muted">Customer: </span><strong>{{ sale.customer_name }}</strong></div>
+        <div><span class="text-muted">Date: </span>{{ sale.created_at[:16].replace('T',' ') }}</div>
+        <div><span class="text-muted">Staff: </span>{{ sale.staff_name }}</div>
+        <div><span class="text-muted">Payment: </span><span style="text-transform:capitalize;">{{ sale.payment_method.replace('_',' ') }}</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="table-wrap">
+        <table><thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
+        <tbody>{% for item in items %}<tr>
+          <td>{{ item.product_name }}</td><td>{{ item.quantity }}</td>
+          <td>{{ cur }}{{ '{:,.0f}'.format(item.unit_price) }}</td>
+          <td style="font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(item.subtotal) }}</td>
+        </tr>{% endfor %}</tbody></table>
+      </div>
+      <div style="padding:14px 18px;border-top:1px solid var(--border);font-size:13px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Subtotal</span><span>{{ cur }}{{ '{:,.0f}'.format(sale.subtotal) }}</span></div>
+        {% if sale.discount > 0 %}<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span class="text-muted">Discount</span><span>-{{ cur }}{{ '{:,.0f}'.format(sale.discount) }}</span></div>{% endif %}
+        <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;margin-top:8px;padding-top:8px;border-top:2px solid var(--border);"><span>Total</span><span>{{ cur }}{{ '{:,.0f}'.format(sale.total) }}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;"><span class="text-muted">Amount Paid</span><span style="color:var(--success-text);font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(sale.amount_paid) }}</span></div>
+        {% if sale.balance > 0 %}<div style="display:flex;justify-content:space-between;margin-top:4px;"><span class="text-muted">Balance Due</span><span style="color:var(--warning-text);font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(sale.balance) }}</span></div>{% endif %}
+        <div style="margin-top:8px;"><span class="text-muted">Status: </span><span class="badge badge-{% if sale.status=='paid' %}success{% elif sale.status=='credit' %}warning{% else %}info{% endif %}">{{ sale.status }}</span></div>
+      </div>
+    </div>
+    <div class="no-print" style="margin-top:16px;display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="window.print()">🖨 Print Receipt</button>
+      <a href="{{ url_for('sales') }}" class="btn btn-secondary">← Back to Sales</a>
+      {% if current_user.role == 'admin' %}
+      <form method="POST" action="{{ url_for('sales_delete', sid=sale.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this transaction? This cannot be undone.');">
+        <button type="submit" class="btn" style="background:var(--danger);color:white;">🗑 Delete Transaction</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Printable receipt -->
+  <div class="receipt" style="width:280px;flex-shrink:0;border:1px dashed var(--border);padding:16px;">
+    <div class="receipt-header">
+      <h2>{{ settings.get('shop_name','ElectroSolar') }}</h2>
+      {% if settings.get('shop_address') %}<p>{{ settings.shop_address }}</p>{% endif %}
+      {% if settings.get('shop_phone') %}<p>Tel: {{ settings.shop_phone }}</p>{% endif %}
+      <p style="margin-top:6px;font-size:11px;">Receipt: {{ sale.invoice_no }}</p>
+      <p style="font-size:11px;">{{ sale.created_at[:16].replace('T',' ') }}</p>
+      {% if sale.customer_name != 'Walk-in' %}<p>Cust: {{ sale.customer_name }}</p>{% endif %}
+    </div>
+    <div class="receipt-items">
+      {% for item in items %}
+      <div>{{ item.product_name }}</div>
+      <div class="receipt-item" style="padding-left:8px;font-size:11px;color:#555;">
+        <span>{{ item.quantity }} × {{ cur }}{{ '{:,.0f}'.format(item.unit_price) }}</span>
+        <span>{{ cur }}{{ '{:,.0f}'.format(item.subtotal) }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <hr class="receipt-divider">
+    {% if sale.discount > 0 %}<div class="receipt-item"><span>Discount</span><span>-{{ cur }}{{ '{:,.0f}'.format(sale.discount) }}</span></div>{% endif %}
+    <div class="receipt-total"><span>TOTAL</span><span>{{ cur }}{{ '{:,.0f}'.format(sale.total) }}</span></div>
+    <hr class="receipt-divider">
+    <div class="receipt-item"><span>Paid</span><span>{{ cur }}{{ '{:,.0f}'.format(sale.amount_paid) }}</span></div>
+    {% if sale.balance > 0 %}<div class="receipt-item"><span>Balance</span><span>{{ cur }}{{ '{:,.0f}'.format(sale.balance) }}</span></div>{% endif %}
+    <div class="receipt-footer"><p>{{ settings.get('receipt_footer','Thank you!') }}</p></div>
+  </div>
+</div>
+{% endblock %}

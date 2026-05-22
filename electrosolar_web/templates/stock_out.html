@@ -1,0 +1,34 @@
+{% extends 'base.html' %}{% block title %}Stock Out{% endblock %}{% block page_title %}Stock Out{% endblock %}
+{% block content %}
+<div style="display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start;">
+  <div class="card">
+    <div class="card-header"><h3>Remove Stock</h3></div>
+    <div class="card-body">
+      <form method="POST">
+        <div class="form-group"><label>Product *</label>
+          <select name="product_id" required onchange="updateStock(this)">
+            <option value="">Select product...</option>
+            {% for p in products %}<option value="{{ p.id }}" data-qty="{{ p.quantity }}" data-unit="{{ p.unit }}">{{ p.name }} (Stock: {{ p.quantity }} {{ p.unit }})</option>{% endfor %}
+          </select>
+        </div>
+        <div id="stockInfo" style="display:none;" class="alert alert-info"></div>
+        <div class="form-group"><label>Quantity to Remove *</label><input type="number" name="quantity" min="1" required></div>
+        <div class="form-group"><label>Reason *</label><input name="reason" placeholder="e.g. Sample given, Internal use" required></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Remove Stock</button>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Recent Manual Stock Out</h3></div>
+    <div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Reason</th><th>Staff</th><th>Date</th></tr></thead>
+    <tbody>{% for m in history %}<tr>
+      <td>{{ m.product_name }}</td><td><span class="badge badge-warning">-{{ m.quantity }}</span></td>
+      <td class="text-muted">{{ m.reason }}</td><td class="text-muted">{{ m.user_name }}</td><td class="text-muted">{{ m.created_at[:10] }}</td>
+    </tr>{% else %}<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3);">No records yet</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+function updateStock(sel){const opt=sel.options[sel.selectedIndex];const info=document.getElementById('stockInfo');if(opt.value){info.style.display='';info.textContent='Current stock: '+opt.dataset.qty+' '+opt.dataset.unit;}else{info.style.display='none';}}
+</script>{% endblock %}

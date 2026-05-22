@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — ElectroSolar Manager</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div style="font-size:42px;margin-bottom:8px;">⚡</div>
+      <h1>ElectroSolar Manager</h1>
+      <p>Inventory &amp; Sales Management System</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Enter username" autofocus required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Enter password" required>
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:11px;font-size:15px;margin-top:8px;">
+        Sign In
+      </button>
+    </form>
+
+    <p style="text-align:center;margin-top:20px;font-size:12px;color:#9096b2;">
+      Default logins: <strong>admin</strong> / admin123 &nbsp;|&nbsp; <strong>staff</strong> / staff123
+    </p>
+  </div>
+</div>
+</body>
+</html>

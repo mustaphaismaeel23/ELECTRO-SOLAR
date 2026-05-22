@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}ElectroSolar Manager{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <h1>ElectroSolar</h1>
+        <p>Shop Manager</p>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">Main</div>
+      <a href="{{ url_for('dashboard') }}" class="nav-item {% if request.endpoint=='dashboard' %}active{% endif %}">
+        <span class="nav-icon">◻</span> Dashboard
+      </a>
+      <a href="{{ url_for('pos') }}" class="nav-item {% if request.endpoint=='pos' %}active{% endif %}">
+        <span class="nav-icon">🛒</span> POS / New Sale
+      </a>
+
+      <div class="nav-section">Inventory</div>
+      <a href="{{ url_for('products') }}" class="nav-item {% if request.endpoint=='products' %}active{% endif %}">
+        <span class="nav-icon">📦</span> Products
+        {% if low_stock_count > 0 %}<span class="nav-badge">{{ low_stock_count }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('categories') }}" class="nav-item {% if request.endpoint=='categories' %}active{% endif %}">
+        <span class="nav-icon">🏷</span> Categories
+      </a>
+      <a href="{{ url_for('brands') }}" class="nav-item {% if request.endpoint=='brands' %}active{% endif %}">
+        <span class="nav-icon">★</span> Brands
+      </a>
+
+      <div class="nav-section">Stock</div>
+      <a href="{{ url_for('stock_in') }}" class="nav-item {% if request.endpoint=='stock_in' %}active{% endif %}">
+        <span class="nav-icon">↓</span> Stock In
+      </a>
+      <a href="{{ url_for('stock_out') }}" class="nav-item {% if request.endpoint=='stock_out' %}active{% endif %}">
+        <span class="nav-icon">↑</span> Stock Out
+      </a>
+      <a href="{{ url_for('stock_damaged') }}" class="nav-item {% if request.endpoint=='stock_damaged' %}active{% endif %}">
+        <span class="nav-icon">⚠</span> Damaged Items
+      </a>
+      <a href="{{ url_for('stock_movements') }}" class="nav-item {% if request.endpoint=='stock_movements' %}active{% endif %}">
+        <span class="nav-icon">≡</span> Movements
+      </a>
+
+      <div class="nav-section">Sales</div>
+      <a href="{{ url_for('sales') }}" class="nav-item {% if request.endpoint in ['sales','sale_detail'] %}active{% endif %}">
+        <span class="nav-icon">🧾</span> Sales History
+      </a>
+      <a href="{{ url_for('customers') }}" class="nav-item {% if request.endpoint in ['customers','customer_history'] %}active{% endif %}">
+        <span class="nav-icon">👤</span> Customers
+      </a>
+
+      <div class="nav-section">Purchasing</div>
+      <a href="{{ url_for('purchases') }}" class="nav-item {% if request.endpoint in ['purchases','purchase_detail'] %}active{% endif %}">
+        <span class="nav-icon">📋</span> Purchases
+      </a>
+      <a href="{{ url_for('suppliers') }}" class="nav-item {% if request.endpoint=='suppliers' %}active{% endif %}">
+        <span class="nav-icon">🚚</span> Suppliers
+      </a>
+
+      <div class="nav-section">Reports & Admin</div>
+      <a href="{{ url_for('reports') }}" class="nav-item {% if request.endpoint=='reports' %}active{% endif %}">
+        <span class="nav-icon">📊</span> Reports
+      </a>
+      {% if current_user.role == 'admin' %}
+      <a href="{{ url_for('users') }}" class="nav-item {% if request.endpoint=='users' %}active{% endif %}">
+        <span class="nav-icon">👥</span> Users
+      </a>
+      <a href="{{ url_for('settings_page') }}" class="nav-item {% if request.endpoint=='settings_page' %}active{% endif %}">
+        <span class="nav-icon">⚙</span> Settings
+      </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-name">{{ current_user.full_name }}</div>
+      <div class="user-role">{{ current_user.role }}</div>
+      <a href="{{ url_for('logout') }}" class="logout-btn">Sign out</a>
+    </div>
+  </aside>
+
+  <!-- Main area -->
+  <div class="main-area">
+    <header class="topbar">
+      <h2>{% block page_title %}{% endblock %}</h2>
+      <span class="topbar-meta">{{ settings.get('shop_name','ElectroSolar') }} — {{ now.strftime('%A, %d %B %Y') }}</span>
+    </header>
+
+    <main class="page-content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+          <div class="alert alert-{{ 'danger' if cat=='error' else cat }}">
+            {{ msg }}
+            <button onclick="this.parentElement.remove()" style="float:right;background:none;border:none;cursor:pointer;font-size:16px;line-height:1;">×</button>
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

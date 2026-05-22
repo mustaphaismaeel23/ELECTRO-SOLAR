@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — ElectroSolar{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+{% set cur = settings.get('currency','₦') %}
+
+{% if stats.low_stock_count > 0 %}
+<div class="alert alert-warning">
+  ⚠ <strong>{{ stats.low_stock_count }} product(s)</strong> are below reorder level.
+  <a href="{{ url_for('stock_in') }}" style="font-weight:600;margin-left:6px;">Stock them up →</a>
+</div>
+{% endif %}
+
+<!-- Stat cards -->
+<div class="stat-grid" style="margin-bottom:20px;">
+  <div class="stat-card">
+    <div class="label">Total Products</div>
+    <div class="value">{{ stats.total_products }}</div>
+    <div class="sub">{{ stats.low_stock_count }} low stock</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Today's Sales</div>
+    <div class="value" style="color:var(--success-text);">{{ cur }}{{ '{:,.0f}'.format(stats.today_sales) }}</div>
+    <div class="sub">{{ stats.today_transactions }} transactions</div>
+  </div>
+  <div class="stat-card">
+    <div class="label" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>Monthly Revenue</span>
+      {% if current_user.role == 'admin' %}
+      <button class="btn btn-sm btn-ghost" onclick="resetMonthlyData()" title="Clear monthly data" style="font-size:11px;padding:4px 8px;">↻ Reset</button>
+      {% endif %}
+    </div>
+    <div class="value" style="color:var(--info);">{{ cur }}{{ '{:,.0f}'.format(stats.month_sales) }}</div>
+    <div class="sub">This month</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">Customers</div>
+    <div class="value">{{ stats.total_customers }}</div>
+    <div class="sub">{{ cur }}{{ '{:,.0f}'.format(stats.credit_outstanding) }} outstanding</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+  <!-- Sales chart -->
+  <div class="card">
+    <div class="card-header"><h3>Revenue — Last 7 Days</h3></div>
+    <div class="card-body">
+      <canvas id="salesChart" height="160"></canvas>
+    </div>
+  </div>
+
+  <!-- Low stock -->
+  <div class="card">
+    <div class="card-header">
+      <h3>Low Stock Alert</h3>
+      <a href="{{ url_for('stock_in') }}" class="btn btn-sm btn-secondary">Stock In</a>
+    </div>
+    <div style="overflow-y:auto;max-height:220px;">
+      {% if low_stock %}
+      <table>
+        <tbody>
+          {% for p in low_stock %}
+          <tr>
+            <td style="padding-left:14px;font-weight:500;">{{ p.name }}</td>
+            <td><span class="badge {% if p.quantity == 0 %}badge-danger{% else %}badge-warning{% endif %}">{{ p.quantity }} {{ p.unit }}</span></td>
+            <td style="padding-right:14px;color:var(--text3);font-size:11px;">min: {{ p.reorder_level }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty-state" style="padding:24px;"><p>All stock levels are healthy ✓</p></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Recent transactions -->
+<div class="card">
+  <div class="card-header">
+    <h3>Recent Transactions</h3>
+    <a href="{{ url_for('sales') }}" class="btn btn-sm btn-secondary">View all</a>
+  </div>
+  <div style="padding:14px;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--bg2);">
+    <input type="date" id="txnFromDate" placeholder="From date" style="width:140px;">
+    <span style="color:var(--text3);font-size:12px;">to</span>
+    <input type="date" id="txnToDate" placeholder="To date" style="width:140px;">
+    <button class="btn btn-sm btn-secondary" onclick="filterTransactions()">Apply</button>
+    <button class="btn btn-sm btn-ghost" onclick="clearTransactionFilter()">Clear</button>
+  </div>
+  <div class="table-wrap">
+    <table id="txnTable">
+      <thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody id="txnBody">
+        {% if recent_sales %}
+          {% for s in recent_sales %}
+          <tr data-date="{{ s.created_at[:10] }}">
+            <td class="td-mono"><a href="{{ url_for('sale_detail', sid=s.id) }}">{{ s.invoice_no }}</a></td>
+            <td>{{ s.customer_name }}</td>
+            <td style="font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(s.total) }}</td>
+            <td style="text-transform:capitalize;">{{ s.payment_method.replace('_',' ') }}</td>
+            <td><span class="badge badge-{% if s.status=='paid' %}success{% elif s.status=='credit' %}warning{% else %}info{% endif %}">{{ s.status }}</span></td>
+            <td class="text-muted">{{ s.created_at[:10] }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);">No sales recorded yet</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const chartData = {{ chart | tojson }};
+const labels = chartData.map(d => d.day ? d.day.slice(5) : '');
+const revenue = chartData.map(d => d.rev || 0);
+new Chart(document.getElementById('salesChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{ label: 'Revenue', data: revenue, backgroundColor: '#4f6ef7',
+      borderRadius: 4, borderSkipped: false }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+      y: { grid: { color: '#f0f0f0' }, ticks: { font: { size: 11 },
+            callback: v => '₦' + (v/1000).toFixed(0) + 'k' } }
+    }
+  }
+});
+
+function filterTransactions() {
+  const fromDate = document.getElementById('txnFromDate').value;
+  const toDate = document.getElementById('txnToDate').value;
+  
+  if (!fromDate || !toDate) {
+    alert('Please select both dates');
+    return;
+  }
+  
+  document.querySelectorAll('#txnBody tr').forEach(row => {
+    const rowDate = row.dataset.date;
+    row.style.display = (rowDate >= fromDate && rowDate <= toDate) ? '' : 'none';
+  });
+}
+
+function clearTransactionFilter() {
+  document.getElementById('txnFromDate').value = '';
+  document.getElementById('txnToDate').value = '';
+  document.querySelectorAll('#txnBody tr').forEach(row => {
+    row.style.display = 'table-row';
+  });
+}
+
+function resetMonthlyData() {
+  if (!confirm('This will delete all sales from this month. This action cannot be undone. Are you sure?')) {
+    return;
+  }
+  
+  fetch('{{ url_for("reset_monthly_sales") }}', {
+    method: 'POST'
+  })
+  .then(r => r.json())
+  .then(result => {
+    if (result.success) {
+      alert('Monthly sales data cleared. Refreshing...');
+      location.reload();
+    } else {
+      alert('Error: ' + result.message);
+    }
+  })
+  .catch(e => alert('Error: ' + e));
+}
+</script>
+{% endblock %}

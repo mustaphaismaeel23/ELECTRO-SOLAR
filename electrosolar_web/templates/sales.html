@@ -1,0 +1,31 @@
+{% extends 'base.html' %}{% block title %}Sales History{% endblock %}{% block page_title %}Sales History{% endblock %}
+{% block content %}
+{% set cur = settings.get('currency','₦') %}
+<div class="page-header"><div></div>
+  <form method="GET" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <input type="date" name="from" value="{{ from_date }}" style="width:145px;">
+    <span style="color:var(--text3);font-size:12px;">to</span>
+    <input type="date" name="to" value="{{ to_date }}" style="width:145px;">
+    <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
+  </form>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px;">
+  <div class="stat-card"><div class="label">Transactions</div><div class="value" style="font-size:20px;">{{ totals.count }}</div></div>
+  <div class="stat-card"><div class="label">Total Revenue</div><div class="value" style="font-size:20px;color:var(--success-text);">{{ cur }}{{ '{:,.0f}'.format(totals.revenue) }}</div></div>
+  <div class="stat-card"><div class="label">Outstanding Balance</div><div class="value" style="font-size:20px;color:var(--warning-text);">{{ cur }}{{ '{:,.0f}'.format(totals.outstanding) }}</div></div>
+</div>
+<div class="card"><div class="table-wrap">
+<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Balance</th><th>Method</th><th>Status</th><th>Date</th><th></th></tr></thead>
+<tbody>{% for s in sales %}<tr>
+  <td class="td-mono">{{ s.invoice_no }}</td>
+  <td>{{ s.customer_name }}</td>
+  <td style="font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(s.total) }}</td>
+  <td style="color:var(--success-text);">{{ cur }}{{ '{:,.0f}'.format(s.amount_paid) }}</td>
+  <td style="color:{% if s.balance>0 %}var(--warning-text){% else %}var(--text3){% endif %};">{% if s.balance>0 %}{{ cur }}{{ '{:,.0f}'.format(s.balance) }}{% else %}—{% endif %}</td>
+  <td class="text-muted" style="text-transform:capitalize;">{{ s.payment_method.replace('_',' ') }}</td>
+  <td><span class="badge badge-{% if s.status=='paid' %}success{% elif s.status=='credit' %}warning{% else %}info{% endif %}">{{ s.status }}</span></td>
+  <td class="text-muted">{{ s.created_at[:10] }}</td>
+  <td><a href="{{ url_for('sale_detail', sid=s.id) }}" class="btn-icon" title="View &amp; Print">👁</a></td>
+</tr>{% else %}<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--text3);">No sales in this period</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
