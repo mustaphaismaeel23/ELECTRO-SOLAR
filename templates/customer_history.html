@@ -1,0 +1,21 @@
+{% extends 'base.html' %}{% block title %}{{ customer.name }} — History{% endblock %}{% block page_title %}{{ customer.name }} — Purchase History{% endblock %}
+{% block content %}{% set cur=settings.get('currency','₦') %}
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;">
+  <div class="stat-card"><div class="label">Phone</div><div style="font-size:14px;font-weight:600;">{{ customer.phone or '—' }}</div></div>
+  <div class="stat-card"><div class="label">Credit Limit</div><div style="font-size:14px;font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(customer.credit_limit) }}</div></div>
+  <div class="stat-card"><div class="label">Balance Due</div><div style="font-size:14px;font-weight:600;color:{% if customer.credit_balance>0 %}var(--warning-text){% else %}var(--success-text){% endif %};">{{ cur }}{{ '{:,.0f}'.format(customer.credit_balance) }}</div></div>
+</div>
+<div class="card"><div class="table-wrap">
+<table><thead><tr><th>Invoice</th><th>Items</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Date</th><th></th></tr></thead>
+<tbody>{% for s in history %}<tr>
+  <td class="td-mono">{{ s.invoice_no }}</td><td>{{ s.item_count }}</td>
+  <td style="font-weight:600;">{{ cur }}{{ '{:,.0f}'.format(s.total) }}</td>
+  <td>{{ cur }}{{ '{:,.0f}'.format(s.amount_paid) }}</td>
+  <td style="color:{% if s.balance>0 %}var(--warning-text){% else %}var(--text3){% endif %};">{% if s.balance>0 %}{{ cur }}{{ '{:,.0f}'.format(s.balance) }}{% else %}—{% endif %}</td>
+  <td><span class="badge badge-{% if s.status=='paid' %}success{% else %}warning{% endif %}">{{ s.status }}</span></td>
+  <td class="text-muted">{{ s.created_at[:10] }}</td>
+  <td><a href="{{ url_for('sale_detail',sid=s.id) }}" class="btn-icon">👁</a></td>
+</tr>{% else %}<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text3);">No purchase history</td></tr>{% endfor %}</tbody>
+</table></div></div>
+<div style="margin-top:16px;"><a href="{{ url_for('customers') }}" class="btn btn-secondary">← Back to Customers</a></div>
+{% endblock %}

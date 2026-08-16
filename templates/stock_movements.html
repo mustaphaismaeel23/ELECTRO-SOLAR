@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% block title %}Stock Movements{% endblock %}{% block page_title %}Stock Movements{% endblock %}
+{% block content %}
+<div class="page-header"><div></div>
+  <form method="GET" style="display:flex;gap:8px;">
+    <select name="type" onchange="this.form.submit()" style="width:160px;">
+      <option value="">All types</option>
+      <option value="in" {% if filter_type=='in' %}selected{% endif %}>Stock In</option>
+      <option value="out" {% if filter_type=='out' %}selected{% endif %}>Stock Out</option>
+      <option value="damaged" {% if filter_type=='damaged' %}selected{% endif %}>Damaged</option>
+    </select>
+  </form>
+</div>
+<div class="card"><div class="table-wrap">
+<table><thead><tr><th>Product</th><th>Type</th><th>Quantity</th><th>Reason</th><th>Staff</th><th>Date/Time</th></tr></thead>
+<tbody>{% for m in movements %}<tr>
+  <td style="font-weight:500;">{{ m.product_name }}</td>
+  <td><span class="badge {% if m.movement_type=='in' %}badge-success{% elif m.movement_type=='damaged' %}badge-danger{% else %}badge-warning{% endif %}" style="text-transform:capitalize;">{{ m.movement_type }}</span></td>
+  <td style="font-weight:600;color:{% if m.movement_type=='in' %}var(--success-text){% else %}var(--danger-text){% endif %};">
+    {% if m.movement_type=='in' %}+{% else %}-{% endif %}{{ m.quantity }}
+  </td>
+  <td class="text-muted">{{ m.reason or '—' }}</td>
+  <td class="text-muted">{{ m.user_name }}</td>
+  <td class="text-muted">{{ m.created_at[:16].replace('T',' ') }}</td>
+</tr>{% else %}<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text3);">No movements recorded yet</td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% block title %}Stock In{% endblock %}{% block page_title %}Stock In{% endblock %}
+{% block content %}
+<div style="display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start;">
+  <div class="card">
+    <div class="card-header"><h3>Add Stock</h3></div>
+    <div class="card-body">
+      <form method="POST">
+        <div class="form-group"><label>Product *</label>
+          <select name="product_id" required onchange="updateStock(this)">
+            <option value="">Select product...</option>
+            {% for p in products %}<option value="{{ p.id }}" data-qty="{{ p.quantity }}" data-unit="{{ p.unit }}" data-reorder="{{ p.reorder_level }}">{{ p.name }} (Stock: {{ p.quantity }} {{ p.unit }})</option>{% endfor %}
+          </select>
+        </div>
+        <div id="stockInfo" style="display:none;" class="alert alert-info" style="margin-bottom:12px;"></div>
+        <div class="form-group"><label>Quantity to Add *</label><input type="number" name="quantity" min="1" required placeholder="e.g. 10"></div>
+        <div class="form-group"><label>Reason / Source</label><input name="reason" placeholder="e.g. Purchased from supplier"></div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">Add Stock</button>
+      </form>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Recent Stock In</h3></div>
+    <div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty Added</th><th>Reason</th><th>Staff</th><th>Date</th></tr></thead>
+    <tbody>{% for m in history %}<tr>
+      <td style="font-weight:500;">{{ m.product_name }}</td>
+      <td><span class="badge badge-success">+{{ m.quantity }}</span></td>
+      <td class="text-muted">{{ m.reason }}</td>
+      <td class="text-muted">{{ m.user_name }}</td>
+      <td class="text-muted">{{ m.created_at[:10] }}</td>
+    </tr>{% else %}<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3);">No stock movements yet</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+function updateStock(sel){const opt=sel.options[sel.selectedIndex];const info=document.getElementById('stockInfo');if(opt.value){info.style.display='';info.textContent='Current stock: '+opt.dataset.qty+' '+opt.dataset.unit+' | Reorder level: '+opt.dataset.reorder;}else{info.style.display='none';}}
+</script>{% endblock %}
