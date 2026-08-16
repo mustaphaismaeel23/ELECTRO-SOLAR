@@ -5,11 +5,17 @@ import os
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, g
 from functools import wraps
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'electrosolar-secret-key-change-in-production'
+app.secret_key = os.getenv('SECRET_KEY', 'change-this-secret-in-production')
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'electrosolar.db')
+DEBUG = os.getenv('DEBUG', 'False').strip().lower() in {'1', 'true', 'yes', 'on'}
+HOST = os.getenv('HOST', '0.0.0.0')
+PORT = int(os.getenv('PORT', '5000'))
+DB_PATH = os.getenv('DB_PATH', os.path.join(os.path.dirname(__file__), 'electrosolar.db'))
 
 # ── Database helpers ──────────────────────────────────────────────────────────
 
@@ -961,7 +967,7 @@ if __name__ == '__main__':
     init_db()
     print("\n" + "="*50)
     print("  ⚡ ElectroSolar Manager")
-    print("  Running at: http://localhost:5000")
+    print(f"  Running at: http://{HOST}:{PORT}")
     print("  Login: admin / admin123")
     print("="*50 + "\n")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=DEBUG, host=HOST, port=PORT)
